@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Header from '../../components/Header';
 import { formatEndDate, formatStartDate, formatWeather, getDayOfDate, getWeatherIcon } from '../../utils';
 import { fetchWeatherData } from '../../services/api';
-import { Loader2, PlusIcon, Plane, Building2, Car, Ticket, UtensilsCrossed, MoreHorizontal, Pencil, Trash2, Check, Copy } from 'lucide-react';
+import { Loader2, PlusIcon, Plane, Building2, Car, Ticket, UtensilsCrossed, MoreHorizontal, Pencil, Trash2, Check, Copy, AlertTriangle } from 'lucide-react';
 import ActionButton from '../../components/ActionButton';
 import AddItemModal from '../../components/AddItemModal';
 import AIAssistModal from '../../components/AIAssistModal';
-import { getTripWithItinerary, deleteItineraryItem, addMultipleItineraryItems, generateShareToken, getTripByShareToken } from '../../services/tripsService';
+import { getTripWithItinerary, deleteItineraryItem, addMultipleItineraryItems, generateShareToken, getTripByShareToken, deleteTrip } from '../../services/tripsService';
 
 const getItemIcon = (type) => {
     switch (type) {
@@ -33,6 +33,7 @@ const getItemColor = (type) => {
 
 const TripPage = () => {
     const { tripId, shareToken } = useParams();
+    const navigate = useNavigate();
     const [currentTrip, setCurrentTrip] = useState(null);
     const [tripLoading, setTripLoading] = useState(true);
     const [tripError, setTripError] = useState(null);
@@ -44,6 +45,8 @@ const TripPage = () => {
     const [showAIModal, setShowAIModal] = useState(false);
     const [shareLink, setShareLink] = useState(null);
     const [shareLinkCopied, setShareLinkCopied] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const isSharedView = !!shareToken;
 
     const loadTrip = useCallback(async () => {
@@ -148,6 +151,20 @@ const TripPage = () => {
             await navigator.clipboard.writeText(shareLink);
             setShareLinkCopied(true);
             setTimeout(() => setShareLinkCopied(false), 3000);
+        }
+    };
+
+    const handleDeleteTrip = async () => {
+        if (!tripId) return;
+        
+        try {
+            setDeleting(true);
+            await deleteTrip(tripId);
+            navigate('/');
+        } catch (err) {
+            console.error('Error deleting trip:', err);
+            alert('Failed to delete trip. Please try again.');
+            setDeleting(false);
         }
     };
 
@@ -260,6 +277,61 @@ const TripPage = () => {
                 onShare={handleShare}
                 isSharedView={isSharedView}
             />
+            
+            {!isSharedView && (
+                <div className="w-full px-4 md:px-20 mt-4 flex justify-end">
+                    <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200 hover:border-red-300"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        <span className="text-sm font-medium">Delete Trip</span>
+                    </button>
+                </div>
+            )}
+            
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => !deleting && setShowDeleteConfirm(false)}>
+                    <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                                <AlertTriangle className="w-5 h-5 text-red-600" />
+                            </div>
+                            <h2 className="text-xl font-bold">Delete Trip</h2>
+                        </div>
+                        <p className="text-gray-600 mb-6">
+                            Are you sure you want to delete <span className="font-semibold">"{currentTrip?.name}"</span>? 
+                            This action cannot be undone and will delete all itinerary items associated with this trip.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                disabled={deleting}
+                                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeleteTrip}
+                                disabled={deleting}
+                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {deleting ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span>Deleting...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-4 h-4" />
+                                        <span>Delete</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             
             {shareLink && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShareLink(null)}>
